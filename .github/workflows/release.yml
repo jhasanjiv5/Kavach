@@ -1,0 +1,32 @@
+name: Release
+
+# Push a tag like v0.1.0 (or v0.1.0-beta.1 for a pre-release) to publish binaries.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go test -race ./...
+      - run: make selftest
+      - name: Build archives
+        run: make dist VERSION=${GITHUB_REF_NAME}
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          flags="--generate-notes --verify-tag"
+          case "$GITHUB_REF_NAME" in *-*) flags="$flags --prerelease";; esac
+          gh release create "$GITHUB_REF_NAME" dist/kavach_${GITHUB_REF_NAME}_*.tar.gz dist/checksums.txt \
+            --title "Kavach $GITHUB_REF_NAME" $flags
